@@ -1,0 +1,11 @@
+UserParameter=servicealive[*], /opt/zabbix/script/monitorservice.sh $1
+UserParameter=io.discovery, /opt/zabbix/script/disk_discovery.sh
+UserParameter=io.status[*], /opt/zabbix/script/diskio.sh $1 $2
+UserParameter=get.tcp.connect[*],/opt/zabbix/script/tcp_connect.sh $1
+UserParameter=redis.stat[*], /hsdata/redis-slave/src/redis-cli -a $1  -p $2 info | grep "$3:" | cut -d":" -f2
+UserParameter=nginx.stat[*], /opt/zabbix/script/nginx_status.sh $1
+UserParameter=tomcat.discover, /opt/zabbix/script/tomcat.py
+UserParameter=tomcat.stat[*], /opt/zabbix/script/tomcat.py $1 $2
+UserParameter=expireuser.discover, /opt/zabbix/script/user.py
+UserParameter=expireuser.stat[*], /opt/zabbix/script/user.py $1
+UserParameter=javagc.stat, /opt/zabbix/script/GCMonitorDataCollect.py

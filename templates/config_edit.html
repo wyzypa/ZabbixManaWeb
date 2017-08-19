@@ -1,0 +1,269 @@
+{% extends "base.htm" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Config Management{% endblock %}
+{% block head %}
+        {{super()}}
+        <script>
+                function processReturnData(data){
+                        data = data.replace("ERROR:","")
+                        if (data.indexOf("{")==0){
+                                data = eval("("+data+")")
+                                var str = ""
+                                for (ip in data){
+                                    str += ip+" : "+processReturnData(data[ip])+"\n"
+                                }
+                                return str
+                        }
+                        if (data.indexOf("timed out")!=-1){
+                                data="连接超时!"
+                        }
+                        if (data.indexOf("Authentication failed.")!=-1){
+                                data="zabbix用户不存在或zabbix用户密码不是默认值!"
+                        }
+                        if(data.indexOf("10060")!=-1){
+                                data="无法连接到服务器!"
+                        }
+                        if (data.indexOf("No such file or directory")!=-1){
+                                data="相关文件缺失!"
+                        }
+                        if (data.indexOf("not following \"parameter=value\" notation")!=-1 || data.indexOf("unknown parameter [UserParam] in config file")!=-1){
+                                data="重启zabbix_agent失败，请检查配置文件格式。如果需要紧急恢复原配置，请点击紧急启动zabbix_agent"
+                                $("#emergencyStart").slideDown()
+                        }
+                        return data
+                }
+        
+                function sendGroupId(groupid){
+                        var param = {"groupid":groupid};
+                        $.ajax({
+                                type:'GET',
+                                url:'/hostlist',
+                                data:param,
+                                datatype:'json',
+                                success:setHostList
+                        })
+                }
+                
+                function setHostList(data){
+                        if (data.indexOf("ERROR:")==0){
+                                data=processReturnData(data)
+                                alert(data)
+                        }
+                        else{
+                                $("#hostselect").empty()
+                                var hostinfo = eval('('+data+')')
+                                for (var i=0;i<hostinfo.length;i++){
+                                        $("#hostselect").append("<option value="+hostinfo[i].ip+">"+hostinfo[i].name+"</option>")
+                                }
+                        }
+                }
+                
+                function sendIp(ip){
+                        var param = {"ip":ip}
+                        $.ajax({
+                                type:'GET',
+                                url:'/configedit/configcontent',
+                                data:param,
+                                success:getFileContent
+                        });
+                }
+                
+                function getFileContent(data){
+                        $("#hostnameinfo").text($("#hostselect").val()+":  "+$("#hostselect").find("option:selected").text())
+                        if (data.indexOf("ERROR:")==0){
+                                var processedData = processReturnData(data)
+                                alert(processedData)
+                        }
+                        else{
+                                $("#filecontent").val("")
+                                $("#filecontent").val(data)
+                        }
+                }
+                
+                
+                $(document).ready(function(){
+                        WIDTH = $(window).width()
+                        HEIGHT = $(window).height()
+                        $("body").append('<div id="loading"></div>')
+                        $("body").append('<div id="layerforgif"><img id="waitingimg" src="../static/juhua.gif" /></div>')
+                        $("#loading").css({"opacity":.4,position:"absolute",left:"0px",top:"0px","width":"100%","height":"100%","background-color":"black","z-index":5000})               
+                        $("#layerforgif").css({"position":"absolute",left:"650px",top:"250px","z-index":6000})
+                        $(document).ajaxStart(function(){
+                                $("#loading").fadeIn()
+                                $("#layerforgif").fadeIn()
+                        });
+                        $(document).ajaxComplete(function(){
+                                $("#loading").fadeOut()
+                                $("#layerforgif").fadeOut()
+                        });
+                        $("#loading").hide()
+                        $("#layerforgif").hide()
+                        $("#emergencyStart").hide()
+                        $("#groupselect").change(function(){
+                                if ($("#groupselect").val()!="null"){
+                                        $("#filecontent").val("")
+                                        $("#hostnameinfo").text("")
+                                        var groupid = $("#groupselect").val()
+                                        sendGroupId(groupid);
+                                }
+                                else{
+                                        $("#hostselect").empty()
+                                }
+                        });
+                        $("#batchEdit").mouseover(function(){
+                                $("body").append('<div id="batchEditTips" align="center" style="border:solid 1px black;background-color:#FFFACD">批量添加或删除配置项</div>')
+                                $("#batchEditTips").css({position:'absolute','width':'200px','height':'30px',top:'180px',left:'130px'})
+                        });
+                        $("#batchEdit").mouseleave(function(){
+                                $("#batchEditTips").remove()
+                        });
+                        $("#batchEdit").click(function(){
+                                if ($("#groupselect").val()=="null"){
+                                        return 0
+                                }
+                                $("#loading").fadeIn()
+                                $("body").append('<div class="panel panel-default" id="batchEditor" style="border:solid 1px black;background-color:white"></div>')
+                                $("#batchEditor").css({position:'absolute',left:'400px',top:'100px',"width":"40%","z-index":7000})
+                                $("#batchEditor").append('<div class="panel-heading"><center style="display:inline;margin-left:25%" id="groupname" align="center">'+$("#groupselect").find("option:selected").text()+'</center><span role="button"><img id="batchEditorClose" src="../static/close.png" style="width:20px;height:20px;display:inline" align="right"></span></div>')
+                                $("#batchEditor").append('<div class="panel-body">注:<br>输入配置项格式应为UserParameter=键的名字,脚本路径<br>且原文件中就有新添加配置项内容<br>或原文件中没有要删除的配置项内容会导致操作失败.<textarea rows="7" cols="76" style="resize:none" id="editContent"></textarea><br><div id="batchEditorButtonPanel" style="margin-bottom:10px;margin-top:10px"><button class="btn btn-default btn-sm" id="batchEditAdd">新增</button>&nbsp&nbsp<button class="btn btn-default btn-sm" id="batchEditDel">删除</button></div></div>')
+                                $("#batchEditorClose").click(function(){
+                                        $("#batchEditor").remove()
+                                        $("#loading").fadeOut()
+                                });
+                                $("#batchEditAdd").click(function(){//这里可以记录一下
+                                        if (confirm("确认添加?")){
+                                                var ipList = new Array()
+                                                $("#hostselect option").each(function(){
+                                                        if ($(this).val()!="null"){
+                                                                ipList.push($(this).val())
+                                                        }
+                                                });
+                                                var param = {"method":"ADD","content":$("#editContent").val(),"iplist":ipList.toString()}
+                                                $("#batchEditor").remove()
+                                                $.ajax({
+                                                        type:'POST',
+                                                        url:'/configedit/batchEdit',
+                                                        data:param,
+                                                        success:function(data){
+                                                                alert(processReturnData(data))
+                                                                $("#batchEditor").remove()
+                                                                $("#hostselect").trigger("dblclick")
+                                                        }
+                                                });
+                                        }
+                                });
+                                $("#batchEditDel").click(function(){
+                                        if (confirm("确认删除?")){
+                                                var ipList = new Array()
+                                                $("#hostselect option").each(function(){
+                                                        if ($(this).val()!="null"){
+                                                                ipList.push($(this).val())
+                                                        }
+                                                });
+                                                var param = {"method":"DELETE","content":$("#editContent").val(),"iplist":ipList.toString()}
+                                                $("#batchEditor").remove()
+                                                $.ajax({
+                                                        type:'POST',
+                                                        url:'/configedit/batchEdit',
+                                                        data:param,
+                                                        success:function(data){
+                                                                alert(processReturnData(data))
+                                                                $("#batchEditor").remove()
+                                                                $("#hostselect").trigger("dblclick")
+                                                        }
+                                                });
+                                        }
+                                });
+                        });
+                        $("#hostselect").dblclick(function(){
+                        
+                                var ip = $("#hostselect").val()
+                                if (ip){
+                                        sendIp(ip)
+                                }
+                        });
+                        $("#submitbutton").click(function(){
+                                if (confirm("确认修改配置文件？")){
+                                        $.ajax({
+                                                type:'POST',
+                                                url:'/configedit/saveconfig',
+                                                data:{"filecontent":$("#filecontent").val(),"ip":$("#hostselect").val()},
+                                                success:function(data){alert(processReturnData(data))},
+                                                error:function(data){alert(processReturnData(data))},
+                                        });
+                                }
+                        });
+                        /*
+                        $("#jettydefault").mouseover(function(){
+                                $("body").append('<div id="jettydefaultTips" align="center" style="border:solid 1px black;background-color:#FFFACD">批量添加或删除配置项</div>')
+                                $("#jettydefaultTips").css({position:'absolute','width':'200px','height':'30px',top:'180px',left:'130px'})
+                        });
+                        $("#jettydefault").mouseleave(function(){
+                                $("#jettydefaultTips").remove()
+                        });
+                        */                    
+                        $("#jettydefault").click(function(){
+                                $("#filecontent").val($("#filecontent").val()+"UserParameter=jetty.discover, /opt/zabbix/script/Jettystatus.py\nUserParameter=jetty.stat[*], /opt/zabbix/script/Jettystatus.py $1 $2\n")
+                        });
+                        $("#tomcatdefault").click(function(){
+                                $("#filecontent").val($("#filecontent").val()+"UserParameter=tomcat.discover,/opt/zabbix/script/tomcat.py\nUserParameter=tomcat.stat[*],/opt/zabbix/script/tomcat.py $1 $2\n")
+                        });
+                        $("#expireuserdefault").click(function(){
+                                $("#filecontent").val($("#filecontent").val()+"UserParameter=expireuser.discover,  /opt/zabbix/script/user.py\nUserParameter=expireuser.stat[*],  /opt/zabbix/script/user.py $1\n")
+                        });
+                        $("#costumizedefault").click(function(){
+                                $("#filecontent").val($("#filecontent").val()+"UserParameter=\nUserParameter=\n")
+                        });
+                        $("#emergencyStart").click(function(){
+                                if (confirm("紧急重启？(请在配置变更错误，重启失败时使用)")){
+                                        $.ajax({
+                                                type:'POST',
+                                                url:'/startService',
+                                                data:{"ip":$("#hostselect").val()},
+                                                success:function(data){alert(data)},
+                                                error:function(data){alert(data)},
+                                        });
+                                        $("#emergencyStart").slideUp()
+                                }
+                        });
+                });
+                
+        </script>
+{% endblock %}
+{% block page_content %}
+                {{super()}}
+        <div class="container">
+                <div class="page-header">
+                        <h1>zabbix_agent.userparams.conf 配置管理</h1>
+                </div>
+                <div style="" class="col-lg-4" id="selectionpart">
+                        <div>
+                        <select id="groupselect" class="form-control" style="display:inline">
+                        {% for group in groups %}
+                                <option value={{group[0]}}>{{group[1]}}</option>
+                        {% endfor %}
+                        </select>
+                        <p></p>
+                        <button class="btn btn-default btn-sm" id="batchEdit">
+                                批量编辑
+                        </button>
+                        
+                        </div>
+                        <br>
+                        <select multiple id="hostselect" class="form-control" size="10">
+                        </select>
+                </div>
+                <div style="" class="col-lg-8">
+                        <h4 id="hostnameinfo"></h4>
+                        <textarea rows="13" cols="110" id="filecontent"></textarea>
+                        <button class="btn btn-default" id="submitbutton">确认并重启zabbix_agent服务</button>
+                        <button class="btn btn-default" id="jettydefault">Jetty</button>
+                        <button class="btn btn-default" id="tomcatdefault">Tomcat</button>
+                        <button class="btn btn-default" id="expireuserdefault">Expire User</button>
+                        <button class="btn btn-default" id="costumizedefault">新增</button>
+                        <hr>
+                        <button class="btn btn-default" id="emergencyStart">紧急启动zabbix_agent（恢复原配置）</button>
+                </div>
+        </div>
+{% endblock %}

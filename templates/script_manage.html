@@ -1,0 +1,370 @@
+{% extends "base.htm" %}
+
+{% block title %}Script Management{% endblock %}
+{% block head %}
+        {{super()}}
+        <script>
+        function processReturnData(data){
+                data = data.replace("ERROR:","")
+                if (data.indexOf("{")==0){
+                        data = eval("("+data+")")
+                        var str = ""
+                        for (ip in data){
+                            str += ip+" : "+processReturnData(data[ip])+"\n"
+                        }
+                        return str
+                }                
+                if (data.indexOf("timed out")!=-1){
+                        data="连接超时!"
+                }
+                if (data.indexOf("Authentication failed.")!=-1){
+                        data="zabbix用户不存在或zabbix用户密码不是默认值!"
+                }
+                if(data.indexOf("10060")!=-1){
+                        data="无法连接到服务器!"
+                }
+                if (data.indexOf("No such file or directory")!=-1){
+                        data="相关文件缺失!"
+                }
+
+                return data
+        }
+        
+        function sendGroupId(groupid){
+                var param = {"groupid":groupid};
+                $.ajax({
+                        type:'GET',
+                        url:'/hostlist',
+                        data:param,
+                        datatype:'json',
+                        success:setHostList
+                })
+        }
+        
+        function setHostList(data){
+                if (data.indexOf("ERROR:")==0){
+                        data = processReturnData(data)
+                        alert(data)
+                }
+                else{
+                        $("#hostselect").empty()
+                        var hostinfo = eval('('+data+')')
+                        for (var i=0;i<hostinfo.length;i++){
+                                $("#hostselect").append("<option value="+hostinfo[i].ip+">"+hostinfo[i].name+"</option>")
+                        }
+                }
+        }
+        
+        function sendIP(ip){
+                $.ajax({
+                        type:'GET',
+                        url:'/scriptmanagement/scriptlist',
+                        data:{'ip':ip},
+                        datatype:'json',
+                        success:setScriptList
+                })
+        }
+        function editScript(data){
+                if (data.indexOf("ERROR:")!=-1){
+                        alert (processReturnData(data))
+                        return 0
+                }
+                data = eval('('+data+')')
+                $("#loading").fadeIn()
+                $("body").append('<div id="scripteditor" style="background-color:white;border:solid 2px black" class="panel panel-default"></div>')
+                $("#scripteditor").css({position:'absolute',left:'110px',top:'40px',"width":"80%","z-index":7000})
+                $("#scripteditor").append('<div class="panel-heading"><h3 style="display:inline" id="filename">'+data.filename+'</h3><span role="button"><img class="pull-right" id="scriptEditorClose" style="width:25px;height:25px" src="../static/close.png"></span></div><div class="panel-body"><textarea style="resize:none" id="texteditor" rows="20" cols="140"></textarea><div id="buttonPanel" style="margin:15px"><button class="btn btn-default" id="editok">保存</button>&nbsp&nbsp<button class="btn btn-default" id="editcancel">取消</button></div></div>')
+                $("#texteditor").val(data.scriptcontent)
+                $("#editcancel").click(function(){
+                        $("#scripteditor").remove()
+                        $("#loading").fadeOut()
+                });
+                
+                $("#editok").click(function(){
+                        if (confirm("确认修改"+$("#hostnameinfo").text()+"？")){
+                                var filecontent = $("#texteditor").val()
+                                $("#texteditor").attr("disabled","disabled")
+                                $.ajax({
+                                        type:'POST',
+                                        url:'/scriptmanagement/saveScript',
+                                        data:{'scriptcontent':filecontent,'filename':$("h3#filename").text(),'ip':$("#hostipinfo").text()},
+                                        datatype:'json',
+                                        success:function(data){
+                                                alert(data);
+                                                $("#scripteditor").remove();
+                                                $("#loading").fadeOut('slow')
+                                                },
+                                        global:false
+                                })
+                        }
+                });
+                $("#scriptEditorClose").click(function(){
+                        $("#scripteditor").remove()
+                        $("#loading").fadeOut()                        
+                });
+                
+                
+        }
+        
+        function setScriptList(data){
+                if (data.indexOf("ERROR:")==0){
+                        data = processReturnData(data)
+                        alert(data)
+                }
+                else{
+                        $("#scriptpanel").empty()
+                        var fileArray = data.split("\n")
+                        for (i in fileArray){
+                                if (fileArray[i]==""){
+                                        continue;
+                                }
+                                if (fileArray[i].lastIndexOf(".py")!=-1){
+                                $("#scriptpanel").append("<tr><td><b style=\"color:purple\">"+fileArray[i]+'</b></td><td align="right"><button class="btn btn-default btn-sm fileedit"> 编辑 </button><button class="btn btn-default btn-sm filedelete"> 删除 </button></td></tr>')
+                                }
+                                else if (fileArray[i].lastIndexOf(".sh")!=-1){
+                                $("#scriptpanel").append("<tr><td><b style=\"color:green\">"+fileArray[i]+'</b></td><td align="right"><button class="btn btn-default btn-sm fileedit"> 编辑 </button><button class="btn btn-default btn-sm filedelete"> 删除 </button></td></tr>')
+                                }
+                        }
+                        
+                        $(".fileedit").click(function(){
+                                activeButton = this
+                                filename = $(this).parent().prev().text()
+                                ip = $("#hostipinfo").text()
+                                $.ajax({
+                                        type:'GET',
+                                        url:'/scriptmanagement/editScript',
+                                        data:{'ip':ip,'filename':filename},
+                                        datatype:'json',
+                                        success:editScript,
+                                        error:function(data){alert(data)},
+                                        global:false
+                                })
+                        });
+                        
+                        $(".filedelete").click(function(){
+                                activeButton = this
+                                if (confirm("确认删除"+$(this).parent().prev().text()+"？")){
+                                        filename = $(this).parent().prev().text()
+                                        ip = $("#hostipinfo").text()
+
+                                        $.ajax({
+                                                type:'GET',
+                                                url:'/scriptmanagement/deleteScript',
+                                                data:{'ip':ip,'filename':filename},
+                                                datatype:'json',
+                                                success:function(){
+                                                        $(activeButton).parent().parent().fadeOut('slow')
+                                                },
+                                                error:function(data){alert(data)},
+                                                global:false
+                                        })
+
+                                }
+                        });
+                }
+        }
+        
+        function requestForAddScript(){
+                $.ajax({
+                        type:'GET',
+                        url:'/scriptmanagement/addScript',
+                        //data:{'test':'test'},
+                        datatype:'json',
+                        success:generateAddScriptWindow,
+                        global:false
+                })
+        }
+        
+        function generateAddScriptWindow(data){
+                if (data.indexOf("ERROR:")==0){
+                        data = processReturnData(data)
+                        alert(data)
+                        return
+                }
+                var scriptArray = data.split('\n')
+
+                $("body").append('<div class="panel panel-default" id="scriptAdder" style="border:solid 2px black;background-color:white;position:absolute;left:1000px;top:170px;z-index:3000"></div>')
+                $("#scriptAdder").append('<div class="panel-heading"><p style="display:inline">添加脚本</p><span role="button" class="pull-right"><img id="addCancel" src="../static/close.png" style="width:20px;height:20px"></span></div><div class="panel-body"><table class="table table-striped" id="newScriptTable"></table></div>')
+                for (i in scriptArray){
+                        if (scriptArray[i]==''){
+                                continue
+                        }
+                        $("#newScriptTable").append('<tr><td>'+scriptArray[i]+'</td><td><button class="btn btn-default btn-sm addScriptButton" align="right">添加</button></td></tr>')
+                }
+                $("#addCancel").click(function(){
+                        $("#scriptAdder").remove()
+                });
+                $(".addScriptButton").click(function(){
+                        if (confirm("请确认这个脚本的换行符是\\n而不是\\r\\n。最好的办法是这个脚本的编写工作都在Unix平台上完成。")){
+                                var filename = $(this).parent().prev().text().replace("\n","")
+                                var ip = $("#hostipinfo").text()
+                                $.ajax({
+                                        type:'POST',
+                                        url:'/scriptmanagement/addScript',
+                                        data:{'filename':filename,'ip':ip},
+                                        datatype:'json',
+                                        success:function(data){
+                                                alert(data)
+                                                $("#scriptAdder").remove()
+                                                $("#hostselect").trigger("dblclick")
+                                        }
+                                })
+                        }
+                });
+        
+        }       
+        
+        function generateBatchScriptAdder(data){
+                $("body").append('<div class="panel panel-default" id="batchScriptAdder" style="border:solid 1px black;background-color:white"></div>')
+                $("#batchScriptAdder").css({position:'absolute',left:'200px',top:'180px'})
+                $("#batchScriptAdder").append('<div class="panel-heading"><center style="display:inline" id="groupname" align="center">'+$("#groupselect").find("option:selected").text()+'</center><span role="button"><img id="batchScriptAdderClose" src="../static/close.png" style="width:20px;height:20px;display:inline" align="right"></span></div>')
+                $("#batchScriptAdder").append('<div class="panel-body"><table class="table table-striped" id="batchScriptTable"></table></div>')
+                $("#batchScriptAdderClose").click(function(){
+                        $("#batchScriptAdder").remove()
+                });                
+                var scriptArray = data.split('\n')
+                for (i in scriptArray){
+                        if (scriptArray[i]==''){
+                                continue
+                        }
+                        $("#batchScriptTable").append('<tr><td>'+scriptArray[i]+'</td><td align="right"><button class="btn btn-default btn-sm batchAddScriptButton">添加</button></td></tr>')
+                }
+                $(".batchAddScriptButton").click(function(){
+                        if(confirm("确认添加"+$(this).parent().prev().text().replace("\n","")+"?")){
+                                var filename = $(this).parent().prev().text().replace("\n","")
+                                var ipList = new Array()
+                                $("#hostselect option").each(function(){
+                                        ipList.push($(this).val())
+                                });
+                                $.ajax({
+                                        type:'POST',
+                                        url:'/scriptmanagement/batchAddScript',
+                                        data:{'filename':filename,'iplist':ipList.toString()},
+                                        success:function(data){
+                                                //alert(data)
+                                                alert(processReturnData(data))
+                                                $("#batchScriptAdder").remove()
+                                                $("#hostselect").trigger("dblclick")
+                                        }
+                                
+                                })
+                        }
+                });
+                
+        
+        }
+        
+        $(document).ready(function(){
+                WIDTH = $(window).width()
+                HEIGHT = $(window).height()
+                $("body").append('<div id="loading"></div>')
+                $("body").append('<div id="layerforgif"><img id="waitingimg" src="../static/juhua.gif" /></div>')
+                $("#loading").css({"opacity":.4,position:"absolute",left:"0px",top:"0px","width":"100%","background-color":"black","z-index":5000,"height":"1000px"})                
+                $("#layerforgif").css({"position":"absolute",left:"650px",top:"250px","z-index":6000})
+                $(document).ajaxStart(function(){
+                        $("#loading").fadeIn()
+                        $("#layerforgif").fadeIn()
+                });
+                $(document).ajaxComplete(function(){
+                        $("#loading").fadeOut()
+                        $("#layerforgif").fadeOut()
+                });
+                $("#loading").hide()
+                $("#layerforgif").hide()
+                $("#addNewScript").hide()
+                $("#groupselect").change(function(){
+                        if ($("#groupselect").val()!="null"){
+                        $("#hostnameinfo").text("")
+                        $("#hostipinfo").text("")
+                        $("#addNewScript").hide()
+                        $("#scriptpanel").empty()
+                        var groupid = $("#groupselect").val()
+                        sendGroupId(groupid);
+                        }
+                        else{
+                                $("#hostselect").empty()
+                        }
+                });
+                $("#batchScript").mouseover(function(){
+                        $("body").append('<div id="batchScriptTips" style="border:solid 1px black;background-color:#FFFACD">批量添加脚本到主机组内各主机。<br>将添加的脚本放置到项目根目录的upload_data\\add_script下。上传后脚本默认权限为755。<br>注意：上传同名文件会自动覆盖服务器上原文件</div>')
+                        $("#batchScriptTips").css({position:'absolute',left:'60px',top:'245px'})
+                });
+                $("#batchScript").mouseleave(function(){
+                        $("#batchScriptTips").remove()
+                });
+                $("#batchScript").click(function(){
+                        $("#batchScriptAdder").remove()
+                        if ($("#groupselect").val() == "null") {
+                            return 0
+                        }
+                        $.ajax({
+                            type: 'GET',
+                            url: '/scriptmanagement/addScript',
+                            data: {},
+                            datatype: 'json',
+                            success: generateBatchScriptAdder,
+                            global: false
+                        });
+                });
+                $("#hostselect").dblclick(function(){
+                        var ip = $("#hostselect").val()
+                        if(ip){
+                                $("#hostipinfo").text($("#hostselect").val())
+                                $("#hostnameinfo").text($("#hostselect").find("option:selected").text())
+                                $("#addNewScript").show()
+                                sendIP(ip)
+                        }
+                });
+                $("#addNewScript").mouseover(function(){
+                        $("body").append('<div style="border:solid 1px black" id="addScriptTips">将添加的脚本放置到项目根目录的upload_data\\add_script下。上传后脚本默认权限为755。<br>注意：上传同名文件会自动覆盖服务器上原文件</div>')
+                        $("#addScriptTips").css({position:'absolute',left:'1000px',top:'80px','width':'200px','height':'100px','background-color':'#FFFACD'})
+                });
+                $("#addNewScript").mouseleave(function(){
+                        $("#addScriptTips").remove()
+                });
+                $("#addNewScript").click(function(){
+                        $("#scriptAdder").remove()
+                        requestForAddScript()
+                });
+        
+        });
+        </script>
+{% endblock %}
+{% block page_content %}
+                {{super()}}
+        <div class="container">
+                <div class="page-header">
+                        <h1>脚本管理</h1>
+                </div>
+                <div style="" class="col-lg-4" id="selectionpart">
+                        <div>
+                        <select id="groupselect" class="form-control" style="display:inline">
+                        {% for group in groups %}
+                                <option value={{group[0]}}>{{group[1]}}</option>
+                        {% endfor %}
+                        </select>
+                                <p></p>
+                                <button class="btn btn-default btn-sm" id="batchScript">
+                                        批量上传
+                                </button>
+                        </div>
+                        <br>
+                        <select multiple id="hostselect" class="form-control" size="10">
+                        </select>
+                        
+                        
+                </div>
+                <div style="" class="col-lg-8">
+                        <div class="panel panel-default">
+                                <div class="panel-heading">
+                                        <h4 class="panel-title" id="hostnameinfo" style="display:inline">&nbsp&nbsp</h4>
+                                        <h4 class="panel-title" id="hostipinfo" style="display:inline">&nbsp&nbsp</h4>
+                                        <a class="pull-right" style="display:inline" id="addNewScript">新增脚本</a>
+                                </div>
+                                <div class="panel-body">
+                                <table id="scriptpanel" class="table table-hover"></table>
+                                </div>
+                        </div>
+                </div>
+        </div>
+{% endblock %}

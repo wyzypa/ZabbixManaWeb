@@ -1,0 +1,49 @@
+{% extends "base.htm" %}
+{% block title %}INDEX{% endblock %}
+{% block head %}
+        {{super()}}
+        <script>
+                function startTime()
+                {
+                var today=new Date()
+                var h=today.getHours()
+                var m=today.getMinutes()
+                var s=today.getSeconds()
+                var Y = today.getFullYear()
+                var M = today.getMonth()+1
+                var D = today.getDate()
+                // add a zero in front of numbers<10
+                m=checkTime(m)
+                s=checkTime(s)
+                document.getElementById('timeShow').innerHTML="<h3 align='center'>"+Y+"年"+M+"月"+D+"日<br>"+h+":"+m+":"+s+"</h3>"
+                t=setTimeout('startTime()',1000)
+                }
+                
+                function checkTime(i)
+                {
+                if (i<10) 
+                  {i="0" + i}
+                  return i
+                }
+        </script>
+{% endblock %}
+{% block body_attribs %}
+        onload="startTime()"
+{% endblock %}
+{% block page_content %}
+                {{super()}}
+                <div class="container">
+                <div class="page-header">
+                        <h1>Zabbix综合管理,{{user}}</h1>
+                </div>
+                <div class="col-lg-3">
+                        <span>现在时间<div style="width:250px;color:#20638f;border:solid 4px #c3c3c3" id="timeShow"></div>
+                        </span>  
+
+                </div>
+                <div class="col-lg-8">
+                        <button class="btn btn-default">查看zabbix联通情况</div><br>
+                </div>
+                </div>
+
+{% endblock %}

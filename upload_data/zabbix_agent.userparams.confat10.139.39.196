@@ -1,0 +1,4 @@
+UserParams=jetty.discover, /opt/zabbix/scripts/Jettystatus.py
+UserParams=jetty.stat[*], /opt/zabbix/scripts/Jettystatus.py $1 $2
+UserParameter=test, /test.py
+UserParameter=javagc.stat, /opt/zabbix/script/GCMonitorDataCollect.py

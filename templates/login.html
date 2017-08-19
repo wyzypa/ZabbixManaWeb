@@ -1,0 +1,34 @@
+{% extends "baseWithoutNavbar.htm" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block title %}LOGIN{% endblock %}
+{% block head %}
+        {{super()}}
+<script>
+        $(document).ready(function(){
+                $("#logingifpanel").hide()
+                $("#submit_button").click(function(){
+                       $("#logingifpanel").show()
+                });
+                $(".alert alert-warning").load(function(){
+                        $("#logingifpanel").hide()
+                });
+        });
+</script>
+
+{% endblock %}
+{% block content %}
+        {{super()}}
+        {% for message in get_flashed_messages() %}
+                <div class="alert alert-warning" align="center">
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h3>{{ message }}</h3>
+                </div>
+        {% endfor %}
+        <h1 align="center">{{head_message}}</h1>
+        <hr>
+        {{wtf.quick_form(form,form_type='horizontal',horizontal_columns=('lg',5,2))}}
+        <div id="logingifpanel" style="width:200px;height:45px;position:absolute;top:245px;left:640px;z-index:5000"><img src="../static/login.gif" /></div>
+        <!-- 这些参数的选择关系到最终成型的页面布局，可以看PYTHON_HOME/Lib/site_packages/
+        flask_bootstrap/templates/bootstrap/wtf.html的源码中quick_form和form_field宏的参数来选择
+        前者主要就是对后者做一个for循环再加上一些判断 -->
+{% endblock %}

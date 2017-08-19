@@ -1,0 +1,41 @@
+{% extends "bootstrap/base.html" %}
+
+{% block title %}Flasky{% endblock %}
+{%- block styles %}
+    <!-- Bootstrap -->
+    <link href="static/css/bootstrap.css" rel="stylesheet">
+{%- endblock styles %}
+{% block head %}
+        {{super()}}
+        <script type="text/javascript" src="static/javascript/jquery-1.4.min.js"></script>
+{% endblock %}
+
+{% block navbar %}
+<div class="navbar-inverse navbar-static-top" role="navigation">
+                <div class="navbar-header">
+                        <button type="button" class="navbar-toggle"
+                        data-toggle="collapse" data-target=".navbar-collapse">
+                                <span class="sr-only">Toggle navigation</span>
+                                <span class="icon-bar"></span>
+                                <span class="icon-bar"></span>
+                                <span class="icon-bar"></span>
+                        </button>
+                        <a class="navbar-brand" href="/"><img style="width:24px;height:24px;display:inline" src="../static/zabbixlogo.png" />  ZABBIX综合管理</a>
+                </div>
+                <div class="navbar-collapse collapse" id="bs-example-navbar-collapse-1">
+                        <ul class="nav navbar-nav">
+                        </ul>
+                </div>
+</div>
+
+{% endblock %}
+
+{% block content %}
+
+        {% block page_content %}{% endblock %}
+
+{% endblock %}
+{% block scripts %}
+<script src="static/javascript/jquery.min.js"></script>
+<script src="static/javascript/bootstrap.min.js"></script>
+{% endblock %}
